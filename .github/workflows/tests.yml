@@ -74,3 +74,6 @@ jobs:
 
       - name: Tester les protections des ecritures patient
         run: psql -X -v ON_ERROR_STOP=1 -d medlink_rls_tests -f tests/sql/patient-write-guards.test.sql
+
+      - name: Tester la creation des documents par le praticien
+        run: psql -X -v ON_ERROR_STOP=1 -d medlink_rls_tests -f tests/sql/practitioner-document-write.test.sql
