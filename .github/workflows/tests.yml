@@ -10,9 +10,50 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
+
       - run: npm ci
       - run: npm test
+
+  sql:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local-test-only
+          POSTGRES_DB: medlink_tests
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d medlink_tests"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: local-test-only
+      PGDATABASE: medlink_tests
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer le client PostgreSQL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Préparer la base de test
+        run: psql -X -v ON_ERROR_STOP=1 -1 -f tests/sql/bootstrap.sql
+
+      - name: Tester les transactions administrateur
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/admin-atomic.test.sql
