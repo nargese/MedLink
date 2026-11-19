@@ -11,12 +11,12 @@ async function assertAdmin(ctx: {
     throw new Error("MFA requise");
   }
 
-  const { data } = await ctx.supabase.rpc("has_role", {
+  const { data, error } = await ctx.supabase.rpc("has_role", {
     _user_id: ctx.userId,
     _role: "admin",
   });
 
-  if (!data) {
+  if (error || data !== true) {
     throw new Error("Accès refusé");
   }
 }
@@ -35,29 +35,36 @@ export const listUsers = createServerFn({ method: "GET" })
     });
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error("Impossible de charger les utilisateurs.");
     }
 
-    const [{ data: roles }, { data: profiles }] = await Promise.all([
+    const [rolesResult, profilesResult] = await Promise.all([
       supabaseAdmin.from("user_roles").select("user_id, role"),
       supabaseAdmin.from("profiles").select("id, full_name"),
     ]);
 
-    return data.users.map((u) => ({
-      id: u.id,
-      email: u.email ?? "",
-      name: profiles?.find((p) => p.id === u.id)?.full_name ?? "",
-      roles: (roles ?? [])
-        .filter((r) => r.user_id === u.id)
-        .map((r) => r.role as string),
-      created_at: u.created_at,
-      last_sign_in_at: u.last_sign_in_at ?? null,
+    if (rolesResult.error || profilesResult.error) {
+      throw new Error("Impossible de charger les profils et les rôles.");
+    }
+
+    const roles = rolesResult.data ?? [];
+    const profiles = profilesResult.data ?? [];
+
+    return data.users.map((user) => ({
+      id: user.id,
+      email: user.email ?? "",
+      name: profiles.find((profile) => profile.id === user.id)?.full_name ?? "",
+      roles: roles
+        .filter((entry) => entry.user_id === user.id)
+        .map((entry) => entry.role as string),
+      created_at: user.created_at,
+      last_sign_in_at: user.last_sign_in_at ?? null,
     }));
   });
 
 export const createAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => staffSchema.parse(d))
+  .inputValidator((input: unknown) => staffSchema.parse(input))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
 
@@ -65,79 +72,104 @@ export const createAccount = createServerFn({ method: "POST" })
       "@/integrations/supabase/client.server"
     );
 
-    const { data: created, error } =
-      await supabaseAdmin.auth.admin.createUser({
+    const creation = await supabaseAdmin.auth.admin
+      .createUser({
         email: data.email,
         password: data.password,
         email_confirm: true,
+        ban_duration: "876000h",
         user_metadata: {
           full_name: data.full_name,
         },
+      })
+      .catch(() => {
+        throw new Error(
+          "Réponse du service de création indisponible. " +
+            "Vérifiez si le compte existe avant de réessayer.",
+        );
       });
 
-    if (error) {
-      throw new Error(error.message);
+    if (creation.error || !creation.data.user) {
+      throw new Error(
+        "Création du compte impossible. " +
+          "Vérifiez notamment si cette adresse est déjà utilisée.",
+      );
     }
 
-    const uid = created.user.id;
+    const user = creation.data.user;
+    const uid = user.id;
 
-    await supabaseAdmin
-      .from("user_roles")
-      .delete()
-      .eq("user_id", uid);
+    // Vérifier la suspension avant toute attribution de privilèges.
+    const bannedUntil =
+      "banned_until" in user && typeof user.banned_until === "string"
+        ? Date.parse(user.banned_until)
+        : NaN;
 
-    await supabaseAdmin
-      .from("user_roles")
-      .insert({
-        user_id: uid,
-        role: data.role,
+    if (!Number.isFinite(bannedUntil) || bannedUntil <= Date.now()) {
+      throw new Error(
+        "La suspension initiale du compte n’a pas pu être confirmée. " +
+          "Vérifiez le compte dans Supabase avant de poursuivre.",
+      );
+    }
+
+    const finalization = await supabaseAdmin
+      .rpc("admin_finalize_account_atomic", {
+        _actor_id: context.userId,
+        _user_id: uid,
+        _role: data.role,
+        _praticien_id:
+          data.role === "praticien" ? (data.praticien_id ?? null) : null,
+        _specialite:
+          data.role === "praticien" ? (data.specialite ?? null) : null,
+        _cliniques:
+          data.role === "praticien" ? (data.cliniques ?? []) : [],
+      })
+      .then(
+        (result) => result,
+        () => {
+          throw new Error(
+            "Résultat de la finalisation inconnu. " +
+              "Le compte reste suspendu. Vérifiez son rôle, sa fiche " +
+              "et son audit dans Supabase avant toute nouvelle tentative.",
+          );
+        },
+      );
+
+    if (finalization.error) {
+      throw new Error(
+        "La finalisation du compte n’a pas été confirmée. " +
+          "Le compte reste suspendu. Vérifiez le rôle, " +
+          "la fiche praticien et les cliniques avant de réessayer.",
+      );
+    }
+
+    // Revérifier les droits avant d’activer le compte finalisé.
+    await assertAdmin(context);
+
+    const activation = await supabaseAdmin.auth.admin
+      .updateUserById(uid, {
+        ban_duration: "none",
+      })
+      .catch(() => {
+        throw new Error(
+          "Compte finalisé, mais résultat de l’activation inconnu. " +
+            "Vérifiez sa suspension dans Supabase avant de réessayer.",
+        );
       });
 
-    if (data.role === "praticien") {
-      if (data.praticien_id) {
-        await supabaseAdmin
-          .from("praticiens")
-          .update({ user_id: uid })
-          .eq("id", data.praticien_id);
-      } else {
-        const { data: p } = await supabaseAdmin
-          .from("praticiens")
-          .insert({
-            user_id: uid,
-            nom: data.full_name,
-            specialite: data.specialite || "Médecine générale",
-          })
-          .select()
-          .single();
-
-        if (p && data.cliniques?.length) {
-          await supabaseAdmin
-            .from("praticien_cliniques")
-            .insert(
-              data.cliniques.map((cliniqueId) => ({
-                praticien_id: p.id,
-                clinique_id: cliniqueId,
-              })),
-            );
-        }
-      }
+    if (activation.error || !activation.data.user) {
+      throw new Error(
+        "Compte finalisé, mais activation non confirmée. " +
+          "Vérifiez sa suspension dans Supabase.",
+      );
     }
-
-    await supabaseAdmin.from("audit_logs").insert({
-      actor_id: context.userId,
-      action: "compte_cree_admin",
-      cible: uid,
-      details: {
-        role: data.role,
-      },
-    });
 
     return { id: uid };
   });
 
 export const setRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => setRoleSchema.parse(d))
+  .inputValidator((input: unknown) => setRoleSchema.parse(input))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
 

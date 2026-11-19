@@ -25,8 +25,67 @@ describe("Validation des données admin", () => {
     expect(staffSchema.parse(input)).toEqual(input);
   });
 
+  it("accepte les trois cliniques des données initiales", () => {
+    const input = {
+      ...account,
+      role: "praticien",
+      cliniques: [
+        "11111111-1111-1111-1111-111111111111",
+        "22222222-2222-2222-2222-222222222222",
+        "33333333-3333-3333-3333-333333333333",
+      ],
+    };
+
+    expect(staffSchema.parse(input)).toEqual(input);
+  });
+
+  it.each([
+    "a0000000-0000-0000-0000-000000000001",
+    "a0000000-0000-0000-0000-000000000002",
+    "a0000000-0000-0000-0000-000000000003",
+    "a0000000-0000-0000-0000-000000000004",
+    "a0000000-0000-0000-0000-000000000005",
+    "a0000000-0000-0000-0000-000000000006",
+  ])("accepte le praticien initial %s", (praticienId) => {
+    const input = {
+      ...account,
+      role: "praticien",
+      praticien_id: praticienId,
+    };
+
+    expect(staffSchema.parse(input)).toEqual(input);
+  });
+
   it("refuse un identifiant de clinique invalide", () => {
-    const input = { ...account, cliniques: ["invalide"] };
+    const input = {
+      ...account,
+      cliniques: ["invalide"],
+    };
+
+    expect(staffSchema.safeParse(input).success).toBe(false);
+  });
+
+  it("refuse un identifiant de praticien invalide", () => {
+    const input = {
+      ...account,
+      role: "praticien",
+      praticien_id: "invalide",
+    };
+
+    expect(staffSchema.safeParse(input).success).toBe(false);
+  });
+
+  it("refuse plus de trois cliniques", () => {
+    const input = {
+      ...account,
+      role: "praticien",
+      cliniques: [
+        "11111111-1111-1111-1111-111111111111",
+        "22222222-2222-2222-2222-222222222222",
+        "33333333-3333-3333-3333-333333333333",
+        id,
+      ],
+    };
 
     expect(staffSchema.safeParse(input).success).toBe(false);
   });

@@ -11,9 +11,9 @@ export const staffSchema = z.object({
     .regex(/[^A-Za-z0-9]/),
   full_name: z.string().trim().min(2).max(100),
   role: z.enum(["patient", "praticien", "admin"]),
-  praticien_id: z.string().uuid().optional(),
+  praticien_id: z.guid().optional(),
   specialite: z.string().trim().max(60).optional(),
-  cliniques: z.array(z.string().uuid()).max(3).optional(),
+  cliniques: z.array(z.guid()).max(3).optional(),
 });
 
 export const setRoleSchema = z.object({
