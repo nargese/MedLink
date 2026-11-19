@@ -34,18 +34,23 @@ function AuthPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      const { data: locked } = await supabase.rpc("login_locked", { _email: email });
-      if (locked) {
-        toast.error("Compte temporairement verrouillé après 5 tentatives échouées. Réessayez dans 15 minutes.");
-        return;
-      }
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      await supabase.rpc("record_login", { _email: email, _success: !error });
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
       if (error) {
-        toast.error("Identifiants incorrects.");
+        toast.error(
+          error.status === 429
+            ? "Trop de tentatives. Réessayez dans quelques instants."
+            : "Connexion impossible. Vérifiez vos identifiants ou réessayez.",
+        );
         return;
       }
+
       navigate({ to: "/espace", replace: true });
+    } catch {
+      toast.error("Impossible de joindre le service de connexion. Réessayez.");
     } finally {
       setBusy(false);
     }
