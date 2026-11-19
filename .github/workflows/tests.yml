@@ -71,3 +71,6 @@ jobs:
 
       - name: Tester les acces praticien et le niveau MFA
         run: psql -X -v ON_ERROR_STOP=1 -d medlink_rls_tests -f tests/sql/practitioner-access.test.sql
+
+      - name: Tester les protections des ecritures patient
+        run: psql -X -v ON_ERROR_STOP=1 -d medlink_rls_tests -f tests/sql/patient-write-guards.test.sql
