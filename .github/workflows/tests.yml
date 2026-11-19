@@ -65,3 +65,6 @@ jobs:
 
       - name: Tester l'isolation des patients
         run: psql -X -v ON_ERROR_STOP=1 -d medlink_rls_tests -f tests/sql/patient-isolation.test.sql
+
+      - name: Tester l'isolation des donnees medicales
+        run: psql -X -v ON_ERROR_STOP=1 -d medlink_rls_tests -f tests/sql/patient-medical-isolation.test.sql
