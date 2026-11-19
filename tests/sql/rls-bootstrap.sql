@@ -64,4 +64,4 @@ WHERE user_id = '20000000-0000-4000-8000-000000000004';
 
 UPDATE public.praticiens
 SET user_id = '20000000-0000-4000-8000-000000000004'
-WHERE id = 'a0000000-0000-0000-0000-000000000001';
+WHERE id = 'a0000000-0000-0000-0000-000000000001';\ir ../../drizzle/migrations/0004_restrict_patient_rdv_update.sql
