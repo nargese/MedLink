@@ -15,6 +15,13 @@
       "when": 1792141024691,
       "tag": "0001_restrict_record_login",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792141024692,
+      "tag": "0002_admin_set_role_atomic",
+      "breakpoints": true
     }
   ]
 }

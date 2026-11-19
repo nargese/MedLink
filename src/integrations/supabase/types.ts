@@ -304,6 +304,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_set_role_atomic: {
+        Args: {
+          _actor_id: string
+          _user_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: undefined
+      }
       creneaux_pris: {
         Args: { _jour: string; _praticien: string }
         Returns: string[]

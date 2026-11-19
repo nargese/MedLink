@@ -151,26 +151,20 @@ export const setRole = createServerFn({ method: "POST" })
       "@/integrations/supabase/client.server"
     );
 
-    await supabaseAdmin
-      .from("user_roles")
-      .delete()
-      .eq("user_id", data.user_id);
-
-    await supabaseAdmin
-      .from("user_roles")
-      .insert({
-        user_id: data.user_id,
-        role: data.role,
-      });
-
-    await supabaseAdmin.from("audit_logs").insert({
-      actor_id: context.userId,
-      action: "role_modifie",
-      cible: data.user_id,
-      details: {
-        role: data.role,
+    const { error } = await supabaseAdmin.rpc(
+      "admin_set_role_atomic",
+      {
+        _actor_id: context.userId,
+        _user_id: data.user_id,
+        _role: data.role,
       },
-    });
+    );
+
+    if (error) {
+      throw new Error(
+        "Modification du rôle impossible. Réessayez.",
+      );
+    }
 
     return { ok: true };
   });
