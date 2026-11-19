@@ -57,3 +57,11 @@ jobs:
 
       - name: Tester les transactions administrateur
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/admin-atomic.test.sql
+      - name: Creer la base RLS
+        run: createdb medlink_rls_tests
+
+      - name: Preparer les politiques RLS
+        run: psql -X -v ON_ERROR_STOP=1 -1 -d medlink_rls_tests -f tests/sql/rls-bootstrap.sql
+
+      - name: Tester l'isolation des patients
+        run: psql -X -v ON_ERROR_STOP=1 -d medlink_rls_tests -f tests/sql/patient-isolation.test.sql
