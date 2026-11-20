@@ -52,3 +52,6 @@ yarn-error.log*
 
 # Sauvegardes PostgreSQL locales
 /backups/
+
+# Fichiers temporaires Supabase
+/supabase/.temp/
