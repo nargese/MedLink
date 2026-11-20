@@ -85,7 +85,8 @@ pipeline {
             practitioner-document-write \
             patient-appointment-tampering \
             super-admin-roles \
-            account-finalization-integration
+            account-finalization-integration \
+            suspended-account-access
           do
             docker exec "$DB_CONTAINER" psql \
               -X -v ON_ERROR_STOP=1 \

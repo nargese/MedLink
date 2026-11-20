@@ -84,7 +84,7 @@ function changes() {
 describe("Gestion des rôles administrateur", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    authorize("admin");
+    authorize("super_admin");
   });
 
   it("refuse une session sans MFA", async () => {
@@ -163,4 +163,12 @@ describe("Gestion des rôles administrateur", () => {
       .rejects.toThrow("Modification du rôle refusée ou impossible.");
     expect(changes()).toHaveLength(1);
   });
+  it("refuse les changements de roles par un admin simple", async () => {
+    authorize("admin");
+    await expect(runSetRole(request()))
+      .rejects.toThrow("Accès réservé au Super Admin.");
+    expect(changes()).toHaveLength(0);
+    expect(mocks.serviceRpc).not.toHaveBeenCalled();
+  });
+
 });

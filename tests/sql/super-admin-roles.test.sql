@@ -41,7 +41,7 @@ BEGIN
         'aal2',
         '20000000-0000-4000-8000-000000000003',
         'super_admin',
-        'Permission super administrateur requise'
+        'Acces refuse'
       ),
       (
         'modification du super_admin par admin',
@@ -49,7 +49,7 @@ BEGIN
         'aal2',
         '20000000-0000-4000-8000-000000000005',
         'admin',
-        'Permission super administrateur requise'
+        'Acces refuse'
       ),
       (
         'modification de son propre compte',

@@ -87,3 +87,6 @@ jobs:
 
       - name: Tester la finalisation des comptes integree
         run: psql -X -v ON_ERROR_STOP=1 -d medlink_rls_tests -f tests/sql/account-finalization-integration.test.sql
+
+      - name: Tester le blocage des comptes suspendus
+        run: psql -X -v ON_ERROR_STOP=1 -d medlink_rls_tests -f tests/sql/suspended-account-access.test.sql

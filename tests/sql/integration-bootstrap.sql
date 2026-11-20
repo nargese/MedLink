@@ -12,3 +12,9 @@
 \ir ../../drizzle/migrations/0008_secure_role_management.sql
 \ir ../../drizzle/migrations/0009_disable_legacy_role_api.sql
 \ir ../../drizzle/migrations/0010_secure_account_finalization.sql
+\ir ../../drizzle/migrations/0011_super_admin_account_management.sql
+ALTER TABLE auth.users
+  ADD COLUMN IF NOT EXISTS banned_until timestamptz;
+
+\ir ../../drizzle/migrations/0012_block_suspended_account_access.sql
+\ir ../../drizzle/migrations/0013_guard_suspended_account_management.sql

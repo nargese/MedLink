@@ -29,23 +29,19 @@ async function assertAdmin(ctx: {
   throw new Error("Accès refusé");
 }
 
-async function assertCanCreateAccount(
+async function assertSuperAdmin(
   ctx: Parameters<typeof assertAdmin>[0],
-  role: string,
-) {
-  const actorRole = await assertAdmin(ctx);
-
-  if (role === "super_admin" && actorRole !== "super_admin") {
-    throw new Error(
-      "Seul un super administrateur peut créer un super administrateur.",
-    );
+): Promise<void> {
+  const role = await assertAdmin(ctx);
+  if (role !== "super_admin") {
+    throw new Error("Accès réservé au Super Admin.");
   }
 }
 
 export const listUsers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context);
+    await assertSuperAdmin(context);
 
     const { supabaseAdmin } = await import(
       "@/integrations/supabase/client.server"
@@ -80,6 +76,10 @@ export const listUsers = createServerFn({ method: "GET" })
         .map((entry) => entry.role as string),
       created_at: user.created_at,
       last_sign_in_at: user.last_sign_in_at ?? null,
+      is_banned:
+        "banned_until" in user &&
+        typeof user.banned_until === "string" &&
+        Date.parse(user.banned_until) > Date.now(),
     }));
   });
 
@@ -87,7 +87,7 @@ export const createAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => staffSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertCanCreateAccount(context, data.role);
+    await assertSuperAdmin(context);
 
     const { supabaseAdmin } = await import(
       "@/integrations/supabase/client.server"
@@ -165,7 +165,7 @@ export const createAccount = createServerFn({ method: "POST" })
     }
 
     // Revérifier les droits avant d’activer le compte finalisé.
-    await assertCanCreateAccount(context, data.role);
+    await assertSuperAdmin(context);
 
     const activation = await supabaseAdmin.auth.admin
       .updateUserById(uid, {
@@ -192,7 +192,7 @@ export const setRole = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => setRoleSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await assertSuperAdmin(context);
 
     if (data.user_id === context.userId) {
       throw new Error(

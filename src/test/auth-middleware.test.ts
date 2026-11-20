@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   getRequest: vi.fn(),
   createClient: vi.fn(),
   getClaims: vi.fn(),
+  rpc: vi.fn(),
   next: vi.fn(),
 }));
 
@@ -56,6 +57,7 @@ describe("Middleware d'authentification", () => {
 
     mocks.createClient.mockReturnValue({
       auth: { getClaims: mocks.getClaims },
+      rpc: mocks.rpc,
     });
 
     mocks.getClaims.mockResolvedValue({
@@ -63,6 +65,7 @@ describe("Middleware d'authentification", () => {
       error: null,
     });
 
+    mocks.rpc.mockResolvedValue({ data: true, error: null });
     mocks.next.mockResolvedValue("suite executee");
     authorization(`Bearer ${token}`);
   });
@@ -179,4 +182,29 @@ describe("Middleware d'authentification", () => {
       },
     });
   });
+  it("refuse un compte suspendu avec un JWT valide", async () => {
+    mocks.rpc.mockResolvedValue({ data: false, error: null });
+    await expect(runMiddleware({ next: mocks.next }))
+      .rejects.toThrow("Account suspended or unavailable");
+    expect(mocks.getClaims).toHaveBeenCalledExactlyOnceWith(token);
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("account_is_active");
+    expect(mocks.next).not.toHaveBeenCalled();
+  });
+
+  it("refuse si la verification du statut echoue", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null, error: { message: "Internal database details" },
+    });
+    await expect(runMiddleware({ next: mocks.next }))
+      .rejects.toThrow("Account status unavailable");
+    expect(mocks.next).not.toHaveBeenCalled();
+  });
+
+  it("controle le statut avant de poursuivre", async () => {
+    await runMiddleware({ next: mocks.next });
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("account_is_active");
+    expect(mocks.rpc.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.next.mock.invocationCallOrder[0]!);
+  });
+
 });

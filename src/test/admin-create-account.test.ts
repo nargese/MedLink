@@ -79,9 +79,9 @@ describe("Création administrée des comptes", () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
-    // Acteur administrateur, sans role super_admin.
+    // Super Admin pour les parcours autorises.
     mocks.hasRole.mockImplementation(async (_name, args) => ({
-      data: args._role === "admin",
+      data: args._role === "super_admin",
       error: null,
     }));
 
@@ -199,11 +199,11 @@ describe("Création administrée des comptes", () => {
   });
 
   it("revérifie les droits avant l'activation", async () => {
-    // Avant creation : super_admin=false, admin=true.
+    // Avant creation : super_admin=true.
     // Apres finalisation : les deux droits sont revoques.
     mocks.hasRole
       .mockResolvedValue({ data: false, error: null })
-      .mockResolvedValueOnce({ data: false, error: null })
+
       .mockResolvedValueOnce({ data: true, error: null });
 
     await expect(runCreateAccount(request()))
@@ -281,4 +281,27 @@ describe("Création administrée des comptes", () => {
       ban_duration: "none",
     });
   });
+  it("refuse la creation par un admin simple", async () => {
+    mocks.hasRole.mockImplementation(async (_name, args) => ({
+      data: args._role === "admin", error: null,
+    }));
+    await expect(runCreateAccount(request()))
+      .rejects.toThrow("Accès réservé au Super Admin.");
+    expect(mocks.createUser).not.toHaveBeenCalled();
+    expect(mocks.finalize).not.toHaveBeenCalled();
+    expect(mocks.activate).not.toHaveBeenCalled();
+  });
+
+  it("refuse l'activation apres retrogradation en admin", async () => {
+    mocks.hasRole
+      .mockImplementation(async (_name, args) => ({
+        data: args._role === "admin", error: null,
+      }))
+      .mockResolvedValueOnce({ data: true, error: null });
+    await expect(runCreateAccount(request()))
+      .rejects.toThrow("Accès réservé au Super Admin.");
+    expect(mocks.finalize).toHaveBeenCalledTimes(1);
+    expect(mocks.activate).not.toHaveBeenCalled();
+  });
+
 });

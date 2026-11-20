@@ -353,6 +353,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      account_is_active: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       admin_finalize_account_atomic: {
         Args: {
           _actor_id: string

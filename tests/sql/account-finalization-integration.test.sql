@@ -52,7 +52,7 @@ BEGIN
       'super_admin', NULL, NULL, NULL
     );
   EXCEPTION WHEN SQLSTATE 'P0001' THEN
-    IF SQLERRM <> 'Permission super administrateur requise' THEN
+    IF SQLERRM <> 'Accès refusé' THEN
       RAISE;
     END IF;
     rejected := true;
