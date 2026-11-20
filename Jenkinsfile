@@ -105,6 +105,44 @@ pipeline {
         '''
       }
     }
+
+    stage('Verification du demarrage') {
+      steps {
+        sh '''
+          set -eu
+          APP_CONTAINER="medlink-smoke-${BUILD_NUMBER}"
+
+          cleanup() {
+            docker rm -f "$APP_CONTAINER" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          docker run -d --name "$APP_CONTAINER" \
+            -e SUPABASE_URL="$VITE_SUPABASE_URL" \
+            -e SUPABASE_PUBLISHABLE_KEY="$VITE_SUPABASE_PUBLISHABLE_KEY" \
+            "medlink:ci-${BUILD_NUMBER}"
+
+          ready=false
+          for attempt in $(seq 1 30); do
+            if docker exec "$APP_CONTAINER" node -e \
+              "fetch('http://127.0.0.1:3000/', {signal: AbortSignal.timeout(3000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+            then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$ready" != true ]; then
+            docker logs --tail 50 "$APP_CONTAINER"
+            echo "ECHEC : application indisponible."
+            exit 1
+          fi
+
+          echo "PASS : application demarree et reponse HTTP valide."
+        '''
+      }
+    }
   }
 
   post {
