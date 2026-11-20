@@ -79,10 +79,11 @@ describe("Création administrée des comptes", () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
-    mocks.hasRole.mockResolvedValue({
-      data: true,
+    // Acteur administrateur, sans role super_admin.
+    mocks.hasRole.mockImplementation(async (_name, args) => ({
+      data: args._role === "admin",
       error: null,
-    });
+    }));
 
     mocks.createUser.mockResolvedValue({
       data: {
@@ -135,7 +136,7 @@ describe("Création administrée des comptes", () => {
     });
 
     await expect(runCreateAccount(request()))
-      .rejects.toThrow("Accès refusé");
+      .rejects.toThrow("Vérification des droits impossible.");
 
     expect(mocks.createUser).not.toHaveBeenCalled();
   });
@@ -198,9 +199,12 @@ describe("Création administrée des comptes", () => {
   });
 
   it("revérifie les droits avant l'activation", async () => {
+    // Avant creation : super_admin=false, admin=true.
+    // Apres finalisation : les deux droits sont revoques.
     mocks.hasRole
-      .mockResolvedValueOnce({ data: true, error: null })
-      .mockResolvedValueOnce({ data: false, error: null });
+      .mockResolvedValue({ data: false, error: null })
+      .mockResolvedValueOnce({ data: false, error: null })
+      .mockResolvedValueOnce({ data: true, error: null });
 
     await expect(runCreateAccount(request()))
       .rejects.toThrow("Accès refusé");

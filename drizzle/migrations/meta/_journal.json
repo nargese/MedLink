@@ -1,4 +1,4 @@
-﻿{
+{
     "version":  "7",
     "dialect":  "postgresql",
     "entries":  [
@@ -35,6 +35,48 @@
                         "version":  "7",
                         "when":  1792141024694,
                         "tag":  "0004_restrict_patient_rdv_update",
+                        "breakpoints":  true
+                    },
+                    {
+                        "idx":  5,
+                        "version":  "7",
+                        "when":  1795092627003,
+                        "tag":  "0005_add_super_admin_role",
+                        "breakpoints":  true
+                    },
+                    {
+                        "idx":  6,
+                        "version":  "7",
+                        "when":  1795092627004,
+                        "tag":  "0006_security_reminders_calls",
+                        "breakpoints":  true
+                    },
+                    {
+                        "idx":  7,
+                        "version":  "7",
+                        "when":  1795163895707,
+                        "tag":  "0007_super_admin_clinics",
+                        "breakpoints":  true
+                    },
+                    {
+                        "idx":  8,
+                        "version":  "7",
+                        "when":  1795163895708,
+                        "tag":  "0008_secure_role_management",
+                        "breakpoints":  true
+                    },
+                    {
+                        "idx":  9,
+                        "version":  "7",
+                        "when":  1795163895709,
+                        "tag":  "0009_disable_legacy_role_api",
+                        "breakpoints":  true
+                    },
+                    {
+                        "idx":  10,
+                        "version":  "7",
+                        "when":  1795163895710,
+                        "tag":  "0010_secure_account_finalization",
                         "breakpoints":  true
                     }
                 ]

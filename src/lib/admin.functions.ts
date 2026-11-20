@@ -6,18 +6,39 @@ async function assertAdmin(ctx: {
   supabase: any;
   userId: string;
   claims: any;
-}) {
+}): Promise<"admin" | "super_admin"> {
   if (ctx.claims?.aal !== "aal2") {
     throw new Error("MFA requise");
   }
 
-  const { data, error } = await ctx.supabase.rpc("has_role", {
-    _user_id: ctx.userId,
-    _role: "admin",
-  });
+  for (const role of ["super_admin", "admin"] as const) {
+    const { data, error } = await ctx.supabase.rpc("has_role", {
+      _user_id: ctx.userId,
+      _role: role,
+    });
 
-  if (error || data !== true) {
-    throw new Error("Accès refusé");
+    if (error) {
+      throw new Error("Vérification des droits impossible.");
+    }
+
+    if (data === true) {
+      return role;
+    }
+  }
+
+  throw new Error("Accès refusé");
+}
+
+async function assertCanCreateAccount(
+  ctx: Parameters<typeof assertAdmin>[0],
+  role: string,
+) {
+  const actorRole = await assertAdmin(ctx);
+
+  if (role === "super_admin" && actorRole !== "super_admin") {
+    throw new Error(
+      "Seul un super administrateur peut créer un super administrateur.",
+    );
   }
 }
 
@@ -66,7 +87,7 @@ export const createAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => staffSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await assertCanCreateAccount(context, data.role);
 
     const { supabaseAdmin } = await import(
       "@/integrations/supabase/client.server"
@@ -144,7 +165,7 @@ export const createAccount = createServerFn({ method: "POST" })
     }
 
     // Revérifier les droits avant d’activer le compte finalisé.
-    await assertAdmin(context);
+    await assertCanCreateAccount(context, data.role);
 
     const activation = await supabaseAdmin.auth.admin
       .updateUserById(uid, {
@@ -179,22 +200,20 @@ export const setRole = createServerFn({ method: "POST" })
       );
     }
 
-    const { supabaseAdmin } = await import(
-      "@/integrations/supabase/client.server"
-    );
-
-    const { error } = await supabaseAdmin.rpc(
-      "admin_set_role_atomic",
+    // Le JWT utilisateur permet à PostgreSQL de vérifier
+    // l'identité, la MFA et les autorisations dans la transaction.
+    const { error } = await context.supabase.rpc(
+      "change_user_role",
       {
-        _actor_id: context.userId,
-        _user_id: data.user_id,
+        _target_user: data.user_id,
         _role: data.role,
+        _action: data.action,
       },
     );
 
     if (error) {
       throw new Error(
-        "Modification du rôle impossible. Réessayez.",
+        "Modification du rôle refusée ou impossible.",
       );
     }
 

@@ -56,3 +56,6 @@ supabase/.branches/
 
 # Jenkins temporary files
 .jenkins-sql-container
+
+# Sauvegardes PostgreSQL locales
+/backups/

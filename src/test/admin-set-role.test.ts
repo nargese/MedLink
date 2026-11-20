@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  hasRole: vi.fn(),
-  setRoleRpc: vi.fn(),
+  rpc: vi.fn(),
+  serviceRpc: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-start", () => ({
@@ -21,9 +21,7 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: {
-    rpc: mocks.setRoleRpc,
-  },
+  supabaseAdmin: { rpc: mocks.serviceRpc },
 }));
 
 import { setRole } from "../lib/admin.functions";
@@ -31,15 +29,18 @@ import { setRole } from "../lib/admin.functions";
 const actorId = "10000000-0000-4000-8000-000000000001";
 const targetId = "10000000-0000-4000-8000-000000000002";
 
+type Role = "patient" | "praticien" | "admin" | "super_admin";
+
 type HandlerInput = {
   data: {
     user_id: string;
-    role: "patient" | "praticien" | "admin";
+    role: Role;
+    action: "add" | "remove";
   };
   context: {
     userId: string;
     claims: { aal: string };
-    supabase: { rpc: typeof mocks.hasRole };
+    supabase: { rpc: typeof mocks.rpc };
   };
 };
 
@@ -52,107 +53,114 @@ function request(aal = "aal2"): HandlerInput {
     data: {
       user_id: targetId,
       role: "praticien",
+      action: "add",
     },
     context: {
       userId: actorId,
       claims: { aal },
-      supabase: { rpc: mocks.hasRole },
+      supabase: { rpc: mocks.rpc },
     },
   };
 }
 
-describe("Changement de rôle administrateur", () => {
+function authorize(actorRole: "admin" | "super_admin" | null) {
+  mocks.rpc.mockImplementation(async (name, args) => {
+    if (name === "has_role") {
+      return { data: args._role === actorRole, error: null };
+    }
+    if (name === "change_user_role") {
+      return { data: null, error: null };
+    }
+    throw new Error(`RPC inattendue : ${name}`);
+  });
+}
+
+function changes() {
+  return mocks.rpc.mock.calls.filter(
+    ([name]) => name === "change_user_role",
+  );
+}
+
+describe("Gestion des rôles administrateur", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-
-    mocks.hasRole.mockResolvedValue({
-      data: true,
-      error: null,
-    });
-
-    mocks.setRoleRpc.mockResolvedValue({
-      data: null,
-      error: null,
-    });
+    authorize("admin");
   });
 
-  it("refuse une session sans MFA renforcée", async () => {
+  it("refuse une session sans MFA", async () => {
     await expect(runSetRole(request("aal1")))
       .rejects.toThrow("MFA requise");
-
-    expect(mocks.hasRole).not.toHaveBeenCalled();
-    expect(mocks.setRoleRpc).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("refuse un utilisateur non administrateur", async () => {
-    mocks.hasRole.mockResolvedValue({
-      data: false,
-      error: null,
-    });
-
+    authorize(null);
     await expect(runSetRole(request()))
       .rejects.toThrow("Accès refusé");
-
-    expect(mocks.setRoleRpc).not.toHaveBeenCalled();
+    expect(changes()).toHaveLength(0);
   });
 
-  it("refuse si la vérification du rôle échoue", async () => {
-    mocks.hasRole.mockResolvedValue({
+  it("refuse une vérification des droits en erreur", async () => {
+    mocks.rpc.mockResolvedValue({
       data: null,
-      error: { message: "Database unavailable" },
+      error: { message: "Internal details" },
     });
-
     await expect(runSetRole(request()))
-      .rejects.toThrow("Accès refusé");
-
-    expect(mocks.setRoleRpc).not.toHaveBeenCalled();
+      .rejects.toThrow("Vérification des droits impossible.");
+    expect(changes()).toHaveLength(0);
   });
 
-  it("interdit la modification de son propre rôle", async () => {
+  it("interdit la modification de son propre compte", async () => {
     const input = request();
     input.data.user_id = actorId;
-
     await expect(runSetRole(input))
-      .rejects.toThrow(
-        "Vous ne pouvez pas modifier votre propre rôle.",
-      );
-
-    expect(mocks.setRoleRpc).not.toHaveBeenCalled();
+      .rejects.toThrow("Vous ne pouvez pas modifier votre propre rôle.");
+    expect(changes()).toHaveLength(0);
   });
 
-  it("signale un échec SQL sans exposer le détail interne", async () => {
-    mocks.setRoleRpc.mockResolvedValue({
-      data: null,
-      error: { message: "Internal database details" },
-    });
-
-    await expect(runSetRole(request()))
-      .rejects.toThrow(
-        "Modification du rôle impossible. Réessayez.",
-      );
-
-    expect(mocks.setRoleRpc).toHaveBeenCalledTimes(1);
-  });
-
-  it("utilise l'identité de l'acteur provenant du contexte", async () => {
-    await expect(runSetRole(request()))
-      .resolves.toEqual({ ok: true });
-
-    expect(mocks.hasRole).toHaveBeenCalledWith("has_role", {
-      _user_id: actorId,
-      _role: "admin",
-    });
-
-    expect(mocks.setRoleRpc).toHaveBeenCalledExactlyOnceWith(
-      "admin_set_role_atomic",
-      {
-        _actor_id: actorId,
-        _user_id: targetId,
+  it("ajoute un rôle via le client utilisateur", async () => {
+    await expect(runSetRole(request())).resolves.toEqual({ ok: true });
+    expect(changes()).toEqual([
+      ["change_user_role", {
+        _target_user: targetId,
         _role: "praticien",
-      },
-    );
+        _action: "add",
+      }],
+    ]);
+    expect(mocks.serviceRpc).not.toHaveBeenCalled();
+  });
 
-    expect(mocks.hasRole.mock.invocationCallOrder[0])
-      .toBeLessThan(mocks.setRoleRpc.mock.invocationCallOrder[0]);
+  it("transmet une demande de retrait sans remplacer les autres rôles", async () => {
+    const input = request();
+    input.data.action = "remove";
+    await expect(runSetRole(input)).resolves.toEqual({ ok: true });
+    expect(changes()[0]?.[1]).toEqual({
+      _target_user: targetId,
+      _role: "praticien",
+      _action: "remove",
+    });
+  });
+
+  it("accepte un acteur super administrateur", async () => {
+    authorize("super_admin");
+    const input = request();
+    input.data.role = "super_admin";
+    await expect(runSetRole(input)).resolves.toEqual({ ok: true });
+    expect(changes()).toHaveLength(1);
+  });
+
+  it("respecte un refus SQL sans exposer son détail", async () => {
+    mocks.rpc.mockImplementation(async (name) => {
+      if (name === "has_role") {
+        return { data: true, error: null };
+      }
+      return {
+        data: null,
+        error: { message: "Internal database details" },
+      };
+    });
+    await expect(runSetRole(request()))
+      .rejects.toThrow("Modification du rôle refusée ou impossible.");
+    expect(changes()).toHaveLength(1);
   });
 });

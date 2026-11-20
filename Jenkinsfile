@@ -24,7 +24,7 @@ pipeline {
             -v "$WORKSPACE:/app" \
             -w /app \
             node:22-bookworm-slim \
-            sh -ec 'npm ci && npm test'
+            sh -ec 'npm ci && npx tsc --noEmit && npm test'
         '''
       }
     }
@@ -73,9 +73,9 @@ pipeline {
             -U postgres medlink_rls_tests
 
           docker exec "$DB_CONTAINER" psql \
-            -X -v ON_ERROR_STOP=1 -1 \
+            -X -v ON_ERROR_STOP=1 \
             -U postgres -d medlink_rls_tests \
-            -f /tmp/medlink/tests/sql/rls-bootstrap.sql
+            -f /tmp/medlink/tests/sql/integration-bootstrap.sql
 
           for test in \
             patient-isolation \
@@ -83,7 +83,9 @@ pipeline {
             practitioner-access \
             patient-write-guards \
             practitioner-document-write \
-            patient-appointment-tampering
+            patient-appointment-tampering \
+            super-admin-roles \
+            account-finalization-integration
           do
             docker exec "$DB_CONTAINER" psql \
               -X -v ON_ERROR_STOP=1 \

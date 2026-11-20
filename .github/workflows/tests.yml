@@ -17,6 +17,7 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npx tsc --noEmit
       - run: npm test
 
   sql:
@@ -61,7 +62,7 @@ jobs:
         run: createdb medlink_rls_tests
 
       - name: Preparer les politiques RLS
-        run: psql -X -v ON_ERROR_STOP=1 -1 -d medlink_rls_tests -f tests/sql/rls-bootstrap.sql
+        run: psql -X -v ON_ERROR_STOP=1 -d medlink_rls_tests -f tests/sql/integration-bootstrap.sql
 
       - name: Tester l'isolation des patients
         run: psql -X -v ON_ERROR_STOP=1 -d medlink_rls_tests -f tests/sql/patient-isolation.test.sql
@@ -80,3 +81,9 @@ jobs:
 
       - name: Tester la protection des champs du rendez-vous
         run: psql -X -v ON_ERROR_STOP=1 -d medlink_rls_tests -f tests/sql/patient-appointment-tampering.test.sql
+
+      - name: Tester les droits super administrateur
+        run: psql -X -v ON_ERROR_STOP=1 -d medlink_rls_tests -f tests/sql/super-admin-roles.test.sql
+
+      - name: Tester la finalisation des comptes integree
+        run: psql -X -v ON_ERROR_STOP=1 -d medlink_rls_tests -f tests/sql/account-finalization-integration.test.sql

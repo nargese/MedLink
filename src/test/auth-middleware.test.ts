@@ -173,7 +173,7 @@ describe("Middleware d'authentification", () => {
 
     expect(mocks.next).toHaveBeenCalledExactlyOnceWith({
       context: {
-        supabase: mocks.createClient.mock.results[0].value,
+        supabase: mocks.createClient.mock.results[0]?.value,
         userId,
         claims: { sub: userId, aal: "aal2" },
       },

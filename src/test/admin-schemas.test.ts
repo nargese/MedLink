@@ -91,13 +91,13 @@ describe("Validation des données admin", () => {
   });
 
   it("accepte un changement de rôle valide", () => {
-    const input = { user_id: id, role: "praticien" };
+    const input = { user_id: id, role: "praticien", action: "add" };
 
     expect(setRoleSchema.parse(input)).toEqual(input);
   });
 
   it("refuse un rôle inconnu", () => {
-    const input = { user_id: id, role: "autre" };
+    const input = { user_id: id, role: "autre", action: "add" };
 
     expect(setRoleSchema.safeParse(input).success).toBe(false);
   });
