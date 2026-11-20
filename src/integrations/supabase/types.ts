@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      appels_mensuels: {
+        Row: {
+          appels: number
+          clinique_id: string
+          created_at: string
+          id: string
+          mois: string
+          reference_appels: number
+        }
+        Insert: {
+          appels: number
+          clinique_id: string
+          created_at?: string
+          id?: string
+          mois: string
+          reference_appels: number
+        }
+        Update: {
+          appels?: number
+          clinique_id?: string
+          created_at?: string
+          id?: string
+          mois?: string
+          reference_appels?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appels_mensuels_clinique_id_fkey"
+            columns: ["clinique_id"]
+            isOneToOne: false
+            referencedRelation: "cliniques"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -133,27 +168,41 @@ export type Database = {
       }
       notifications: {
         Row: {
+          categorie: string
           created_at: string
           id: string
           lu: boolean
           message: string
+          rendez_vous_id: string | null
           user_id: string
         }
         Insert: {
+          categorie?: string
           created_at?: string
           id?: string
           lu?: boolean
           message: string
+          rendez_vous_id?: string | null
           user_id: string
         }
         Update: {
+          categorie?: string
           created_at?: string
           id?: string
           lu?: boolean
           message?: string
+          rendez_vous_id?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notifications_rendez_vous_id_fkey"
+            columns: ["rendez_vous_id"]
+            isOneToOne: false
+            referencedRelation: "rendez_vous"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       praticien_cliniques: {
         Row: {
@@ -308,6 +357,7 @@ export type Database = {
         Args: { _jour: string; _praticien: string }
         Returns: string[]
       }
+      dispatch_rappels: { Args: { _now?: string }; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -318,6 +368,15 @@ export type Database = {
       is_aal2: { Args: never; Returns: boolean }
       is_my_patient: { Args: { _patient: string }; Returns: boolean }
       is_staff_admin: { Args: never; Returns: boolean }
+      change_user_role: {
+  Args: {
+    _target_user: string
+    _role: Database["public"]["Enums"]["app_role"]
+    _action: "add" | "remove"
+  }
+  Returns: undefined
+}
+      is_super_admin: { Args: never; Returns: boolean }
       log_access: {
         Args: { _action: string; _cible: string }
         Returns: undefined
@@ -340,7 +399,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "patient" | "praticien" | "admin"
+      app_role: "patient" | "praticien" | "admin" | "super_admin"
       doc_type: "resultat" | "compte_rendu" | "ordonnance"
       rdv_statut: "confirme" | "annule" | "termine"
     }
@@ -470,7 +529,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["patient", "praticien", "admin"],
+      app_role: ["patient", "praticien", "admin", "super_admin"],
       doc_type: ["resultat", "compte_rendu", "ordonnance"],
       rdv_statut: ["confirme", "annule", "termine"],
     },
