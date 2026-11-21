@@ -104,7 +104,7 @@ pipeline {
           docker build \
             --build-arg VITE_SUPABASE_URL \
             --build-arg VITE_SUPABASE_PUBLISHABLE_KEY \
-            -t "medlink:ci-${BUILD_NUMBER}" .
+            -t "medlink:git-${GIT_COMMIT}" .
         '''
       }
     }
@@ -123,7 +123,7 @@ pipeline {
           docker run -d --name "$APP_CONTAINER" \
             -e SUPABASE_URL="$VITE_SUPABASE_URL" \
             -e SUPABASE_PUBLISHABLE_KEY="$VITE_SUPABASE_PUBLISHABLE_KEY" \
-            "medlink:ci-${BUILD_NUMBER}"
+            "medlink:git-${GIT_COMMIT}"
 
           ready=false
           for attempt in $(seq 1 30); do
@@ -144,6 +144,51 @@ pipeline {
 
           echo "PASS : application demarree et reponse HTTP valide."
         '''
+      }
+    }
+
+    stage('Publication Docker Hub') {
+      when {
+        expression {
+          env.GIT_BRANCH == 'origin/integration/imen-nargese' ||
+          env.GIT_BRANCH == 'integration/imen-nargese'
+        }
+      }
+      steps {
+        withCredentials([
+          usernamePassword(
+            credentialsId: 'dockerhub-medlink',
+            usernameVariable: 'DOCKERHUB_USER',
+            passwordVariable: 'DOCKERHUB_TOKEN'
+          )
+        ]) {
+          sh '''
+            set +x
+            set -eu
+
+            export DOCKER_CONFIG="$(mktemp -d)"
+
+            cleanup_registry() {
+              rm -rf "$DOCKER_CONFIG"
+            }
+            trap cleanup_registry EXIT
+
+            printf '%s' "$DOCKERHUB_TOKEN" |
+              docker login \
+                --username "$DOCKERHUB_USER" \
+                --password-stdin
+
+            REMOTE_IMAGE="imenchi/medlink:git-${GIT_COMMIT}"
+
+            docker tag \
+              "medlink:git-${GIT_COMMIT}" \
+              "$REMOTE_IMAGE"
+
+            docker push "$REMOTE_IMAGE"
+
+            echo "Image publiee : $REMOTE_IMAGE"
+          '''
+        }
       }
     }
   }
