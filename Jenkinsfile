@@ -191,6 +191,49 @@ pipeline {
         }
       }
     }
+
+    stage('Deploiement Kubernetes') {
+      when {
+        expression {
+          env.GIT_BRANCH == 'origin/integration/imen-nargese' ||
+          env.GIT_BRANCH == 'integration/imen-nargese'
+        }
+      }
+      steps {
+        sh '''
+          set -eu
+          export KUBECONFIG=/var/lib/jenkins/.kube/medlink.json
+
+          kubectl_medlink() {
+            /usr/local/bin/k3s kubectl -n medlink "$@"
+          }
+
+          IMAGE="docker.io/imenchi/medlink:git-${GIT_COMMIT}"
+
+          PREVIOUS_IMAGE=$(kubectl_medlink get deployment medlink \
+            -o jsonpath='{.spec.template.spec.containers[0].image}')
+
+          kubectl_medlink set image deployment/medlink app="$IMAGE"
+
+          if ! kubectl_medlink rollout status deployment/medlink \
+            --timeout=300s
+          then
+            echo "Echec du deploiement : restauration de l'image precedente."
+            kubectl_medlink set image deployment/medlink \
+              app="$PREVIOUS_IMAGE"
+            kubectl_medlink rollout status deployment/medlink \
+              --timeout=180s || true
+            exit 1
+          fi
+
+          curl --fail --silent --show-error \
+            --connect-timeout 5 --max-time 20 \
+            -o /dev/null http://192.168.33.10:30082/
+
+          echo "PASS : MedLink deploye et accessible sur Kubernetes."
+        '''
+      }
+    }
   }
 
   post {
